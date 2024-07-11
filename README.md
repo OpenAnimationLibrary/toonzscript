@@ -1,0 +1,2 @@
+# toonzscript
+Scripts for Opentoonz
