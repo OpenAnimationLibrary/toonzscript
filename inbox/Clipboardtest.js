@@ -1,3 +1,5 @@
+//This script was suggested but will not work for a number of reasons.  Those reasons should be documented, preferrably inline.
+
 // Function to copy text to the clipboard
 function copyTextToClipboard(text) {
     navigator.clipboard.writeText(text).then(() => {
