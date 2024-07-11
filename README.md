@@ -1,6 +1,9 @@
 # toonzscript
 Scripts for Opentoonz
 
+# Inbox
+Link:  https://github.com/OpenAnimationLibrary/toonzscript/tree/main/inbox
+
 # Licensing
 
 See scripts themselves for authorship and licensing information.
