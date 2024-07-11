@@ -1,0 +1,27 @@
+print("Load, present Image info and view in Flipbook");
+
+f = "F:\\EXR2PNG.png";
+o = "F:\\PNG2EXR.exr";
+img = new Image(f);
+
+if (img.width > 0 && img.height > 0) { // Check if image loaded
+    print("Loading ", f);
+    if (img.width > 100 && img.height > 100) {
+        print("Image passes size test");
+        print("Loading image in Flipbook");
+        view(img);
+        print("Saving ", o);
+        img.save(o);
+
+        savedImage = new Image(o);
+        if (savedImage.width > 0 && savedImage.height > 0) { // Check if saved image exists
+            print(o, "saved.");
+        } else {
+            print("The file ", o, " could not be saved.");
+        }
+    } else {
+        print("The image dimensions of ", f, " are too small: width = ", img.width, ", height = ", img.height);
+    }
+} else {
+    print("The file ", f, " does not exist or could not be loaded");
+}

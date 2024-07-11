@@ -1,0 +1,24 @@
+print("files and paths");
+//Testing filepath constructors
+
+myRoot = new FilePath("F:\\");
+
+f = myRoot.concat("").concat("image.0001.tif");  //=> first concat empty/not used in this demo
+
+print(f.extension); // => "tif"
+
+print(f.name); // => "image"
+
+print(f.parentDirectory); // => "F:\\"
+
+if(f.exists) print("the file ",f,"exists"); else print("the file ",f,"does not exist");
+
+// d = new Date().getTime() - f.lastModified.getTime(); appears to not be working   investigate
+
+// d.setDate(d.getDate()-1);
+
+// if(f.lastModified>=d) print("file modified in the last 24 hours");
+
+files = myRoot.files();
+
+for(k in files) print(files()[k]); // print all files in myRoot with targeted extension

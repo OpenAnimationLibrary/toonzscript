@@ -1,0 +1,22 @@
+print("TIF transform to TGA - crashes OT");
+l = new Level("F:\\image.0001.tga");
+f_orig = l.getFrame(1);
+
+
+builder = new ImageBuilder();
+builder.add(f_orig, (new Transform).translate(-300.0, -300.0).rotate(-45.0).scale(1.0));
+f = builder.image;
+l.setFrame(2, f);
+
+builder = new ImageBuilder();
+builder.add(f_orig, (new Transform).translate(0.0, 0.0).rotate(0.0).scale(0.25));
+f = builder.image;
+l.setFrame(12, f);
+
+builder = new ImageBuilder();
+builder.add(f_orig, (new Transform).translate(300.0, 300.0).rotate(45.0).scale(1.0));
+f = builder.image;
+l.setFrame(63, f);
+
+
+l.save("F:\\image_modified.0001.tga");
