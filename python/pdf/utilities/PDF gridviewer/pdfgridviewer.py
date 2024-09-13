@@ -68,6 +68,40 @@ class PDFLoader(QThread):
         except Exception as e:
             self.signals.error.emit(str(e))
 
+class ImageSequenceLoader(QThread):
+    def __init__(self, image_files, thumb_width, parent=None):
+        super().__init__(parent)
+        self.image_files = image_files
+        self.thumb_width = thumb_width
+        self.signals = WorkerSignals()
+
+    def run(self):
+        try:
+            total_images = len(self.image_files)
+            pixmaps = []
+            pil_images = []
+            for index, image_file in enumerate(self.image_files):
+                # Open image using PIL
+                image = Image.open(image_file)
+                # Resize image
+                ratio = image.height / image.width
+                desired_width = self.thumb_width
+                desired_height = int(desired_width * ratio)
+                image = image.resize((desired_width, desired_height), Image.LANCZOS)
+                # Store PIL image
+                pil_images.append(image.copy())
+                # Convert to QPixmap
+                pixmap = pil_image_to_pixmap(image)
+                pixmaps.append(pixmap)
+                # Emit progress signal
+                progress = int((index + 1) / total_images * 100)
+                self.signals.progress.emit(progress)
+            # Emit result signal
+            self.signals.result.emit(pixmaps, pil_images)
+            self.signals.finished.emit()
+        except Exception as e:
+            self.signals.error.emit(str(e))
+
 class PDFViewer(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -84,6 +118,10 @@ class PDFViewer(QMainWindow):
         # Add Load PDF button
         load_pdf_button = QPushButton("Load PDF")
         load_pdf_button.clicked.connect(self.load_pdf)
+
+        # Add Import Image Sequence button
+        import_button = QPushButton("Import Image Sequence")
+        import_button.clicked.connect(self.import_image_sequence)
 
         # Add Export button
         export_button = QPushButton("Export")
@@ -102,6 +140,7 @@ class PDFViewer(QMainWindow):
         # Layout setup
         button_layout = QHBoxLayout()
         button_layout.addWidget(load_pdf_button)
+        button_layout.addWidget(import_button)
         button_layout.addWidget(export_button)
         button_layout.addWidget(zoom_in_button)
         button_layout.addWidget(zoom_out_button)
@@ -131,6 +170,7 @@ class PDFViewer(QMainWindow):
         # Store images and positions for export
         self.pil_images = []
         self.image_positions = []
+        self.loaded_from_images = False  # Flag to check if images were loaded from image sequence
 
     def load_pdf(self):
         """Open a file dialog to load a PDF file."""
@@ -171,6 +211,7 @@ class PDFViewer(QMainWindow):
                 # Show progress bar
                 self.progress_bar.setValue(0)
                 self.progress_bar.setVisible(True)
+                self.loaded_from_images = False  # Reset flag
 
                 # Start worker thread
                 self.worker = PDFLoader(file_name, self.thumb_width)
@@ -182,6 +223,57 @@ class PDFViewer(QMainWindow):
 
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to load PDF:\n{e}")
+
+    def import_image_sequence(self):
+        """Import a sequence of images and display them in the grid."""
+        options = QFileDialog.Options()
+        options |= QFileDialog.ReadOnly
+        image_files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select Image Files",
+            "",
+            "Image Files (*.png *.jpg *.jpeg *.bmp);;All Files (*)",
+            options=options
+        )
+        if image_files:
+            try:
+                # Disable UI elements
+                self.set_ui_enabled(False)
+                # Clear the scene
+                self.scene.clear()
+                # Reset zoom level
+                self.zoom_level = 1.0
+                self.view.resetTransform()
+                # Show progress bar
+                self.progress_bar.setValue(0)
+                self.progress_bar.setVisible(True)
+                self.loaded_from_images = True  # Set flag
+
+                # Start worker thread
+                self.worker = ImageSequenceLoader(image_files, self.thumb_width)
+                self.worker.signals.progress.connect(self.update_progress)
+                self.worker.signals.result.connect(self.display_images)
+                self.worker.signals.finished.connect(self.loading_finished)
+                self.worker.signals.error.connect(self.loading_error)
+                self.worker.start()
+
+                # Save images as PDF
+                pdf_file_name, _ = QFileDialog.getSaveFileName(
+                    self,
+                    "Save PDF",
+                    "",
+                    "PDF Files (*.pdf);;All Files (*)",
+                    options=options
+                )
+                if pdf_file_name:
+                    images = [Image.open(img_file).convert('RGB') for img_file in image_files]
+                    images[0].save(pdf_file_name, save_all=True, append_images=images[1:])
+                    QMessageBox.information(self, "Success", f"PDF saved as {pdf_file_name}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to import images:\n{e}")
+            finally:
+                self.set_ui_enabled(True)
+                self.progress_bar.setVisible(False)
 
     def update_progress(self, value):
         self.progress_bar.setValue(value)
@@ -223,7 +315,7 @@ class PDFViewer(QMainWindow):
         # Enable UI elements
         self.set_ui_enabled(True)
         # Show error message
-        QMessageBox.critical(self, "Error", f"Failed to load PDF:\n{error_message}")
+        QMessageBox.critical(self, "Error", f"Failed to load images:\n{error_message}")
 
     def set_ui_enabled(self, enabled):
         self.menuBar().setEnabled(enabled)
