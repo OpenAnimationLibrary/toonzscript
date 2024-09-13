@@ -5,14 +5,14 @@ from pdf2image import convert_from_path, pdfinfo_from_path
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QGraphicsScene, QGraphicsView,
     QGraphicsPixmapItem, QVBoxLayout, QWidget, QPushButton, QHBoxLayout,
-    QFileDialog, QMessageBox, QProgressBar
+    QFileDialog, QMessageBox, QProgressBar, QLabel, QSpinBox
 )
 from PyQt5.QtGui import QPixmap, QPainter, QImage
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QObject
 from PIL import Image
 
 def pil_image_to_pixmap(pil_image):
-    """Convert PIL Image to QPixmap without using ImageQt."""
+    """Convert PIL Image to QPixmap."""
     # Convert PIL image to RGBA format if necessary
     if pil_image.mode != "RGBA":
         pil_image = pil_image.convert("RGBA")
@@ -25,29 +25,30 @@ class WorkerSignals(QObject):
     finished = pyqtSignal()
     error = pyqtSignal(str)
     progress = pyqtSignal(int)
-    result = pyqtSignal(list, list)  # Now passes two lists: pixmaps and pil_images
+    result = pyqtSignal(list, list)  # Passes two lists: pixmaps and pil_images
 
 class PDFLoader(QThread):
-    def __init__(self, file_name, thumb_width, parent=None):
+    def __init__(self, file_name, thumb_width, dpi, parent=None):
         super().__init__(parent)
         self.file_name = file_name
         self.thumb_width = thumb_width
+        self.dpi = dpi
         self.signals = WorkerSignals()
 
     def run(self):
         try:
-            # Increase DPI for higher resolution
-            pages = convert_from_path(self.file_name, dpi=200)  # Adjust dpi as needed
+            # Use user-specified DPI for higher resolution
+            pages = convert_from_path(self.file_name, dpi=self.dpi)
             total_pages = len(pages)
             pixmaps = []
             pil_images = []  # Store PIL images for export
             for index, page in enumerate(pages):
-                # Optionally, resize images to a larger size for better quality
+                # Resize image to desired thumbnail size
                 ratio = page.height / page.width
                 desired_width = self.thumb_width
                 desired_height = int(desired_width * ratio)
 
-                # Use resize instead of thumbnail for better quality
+                # Resize the image
                 page = page.resize((desired_width, desired_height), Image.LANCZOS)
 
                 # Store PIL image for export
@@ -69,10 +70,11 @@ class PDFLoader(QThread):
             self.signals.error.emit(str(e))
 
 class ImageSequenceLoader(QThread):
-    def __init__(self, image_files, thumb_width, parent=None):
+    def __init__(self, image_files, thumb_width, dpi, parent=None):
         super().__init__(parent)
         self.image_files = image_files
         self.thumb_width = thumb_width
+        self.dpi = dpi
         self.signals = WorkerSignals()
 
     def run(self):
@@ -83,6 +85,8 @@ class ImageSequenceLoader(QThread):
             for index, image_file in enumerate(self.image_files):
                 # Open image using PIL
                 image = Image.open(image_file)
+                # Adjust image DPI if necessary
+                image.info['dpi'] = (self.dpi, self.dpi)
                 # Resize image
                 ratio = image.height / image.width
                 desired_width = self.thumb_width
@@ -105,7 +109,7 @@ class ImageSequenceLoader(QThread):
 class PDFViewer(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PDF Viewer")
+        self.setWindowTitle("PDF Viewer with Adjustable DPI")
         self.zoom_level = 1.0
 
         # Initialize the scene and view
@@ -137,6 +141,13 @@ class PDFViewer(QMainWindow):
         restart_button = QPushButton("Restart")
         restart_button.clicked.connect(self.restart_program)
 
+        # Add DPI label and spin box
+        dpi_label = QLabel("DPI:")
+        self.dpi_spinbox = QSpinBox()
+        self.dpi_spinbox.setRange(50, 600)
+        self.dpi_spinbox.setValue(600)  # Default DPI
+        self.dpi_spinbox.setSuffix(" dpi")
+
         # Layout setup
         button_layout = QHBoxLayout()
         button_layout.addWidget(load_pdf_button)
@@ -145,6 +156,8 @@ class PDFViewer(QMainWindow):
         button_layout.addWidget(zoom_in_button)
         button_layout.addWidget(zoom_out_button)
         button_layout.addWidget(restart_button)
+        button_layout.addWidget(dpi_label)
+        button_layout.addWidget(self.dpi_spinbox)
 
         main_layout = QVBoxLayout()
         main_layout.addLayout(button_layout)
@@ -213,8 +226,11 @@ class PDFViewer(QMainWindow):
                 self.progress_bar.setVisible(True)
                 self.loaded_from_images = False  # Reset flag
 
+                # Get DPI value from the spin box
+                dpi_value = self.dpi_spinbox.value()
+
                 # Start worker thread
-                self.worker = PDFLoader(file_name, self.thumb_width)
+                self.worker = PDFLoader(file_name, self.thumb_width, dpi_value)
                 self.worker.signals.progress.connect(self.update_progress)
                 self.worker.signals.result.connect(self.display_images)
                 self.worker.signals.finished.connect(self.loading_finished)
@@ -249,8 +265,11 @@ class PDFViewer(QMainWindow):
                 self.progress_bar.setVisible(True)
                 self.loaded_from_images = True  # Set flag
 
+                # Get DPI value from the spin box
+                dpi_value = self.dpi_spinbox.value()
+
                 # Start worker thread
-                self.worker = ImageSequenceLoader(image_files, self.thumb_width)
+                self.worker = ImageSequenceLoader(image_files, self.thumb_width, dpi_value)
                 self.worker.signals.progress.connect(self.update_progress)
                 self.worker.signals.result.connect(self.display_images)
                 self.worker.signals.finished.connect(self.loading_finished)
