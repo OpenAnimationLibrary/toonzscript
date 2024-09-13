@@ -1,7 +1,7 @@
 import sys
 import os
 import shutil
-from pdf2image import convert_from_path
+from pdf2image import convert_from_path, pdfinfo_from_path
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QGraphicsScene, QGraphicsView,
     QGraphicsPixmapItem, QVBoxLayout, QWidget, QPushButton, QHBoxLayout,
@@ -71,7 +71,7 @@ class PDFLoader(QThread):
 class PDFViewer(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PDF Grid Viewer with Export to PNG")
+        self.setWindowTitle("PDF Viewer")
         self.zoom_level = 1.0
 
         # Initialize the scene and view
@@ -105,7 +105,7 @@ class PDFViewer(QMainWindow):
         button_layout.addWidget(export_button)
         button_layout.addWidget(zoom_in_button)
         button_layout.addWidget(zoom_out_button)
-        button_layout.addWidget(restart_button)  # Add the restart button here
+        button_layout.addWidget(restart_button)
 
         main_layout = QVBoxLayout()
         main_layout.addLayout(button_layout)
@@ -144,24 +144,44 @@ class PDFViewer(QMainWindow):
             options=options
         )
         if file_name:
-            # Disable UI elements
-            self.set_ui_enabled(False)
-            # Clear the scene
-            self.scene.clear()
-            # Reset zoom level
-            self.zoom_level = 1.0
-            self.view.resetTransform()
-            # Show progress bar
-            self.progress_bar.setValue(0)
-            self.progress_bar.setVisible(True)
+            try:
+                # Get PDF info to find out the number of pages
+                info = pdfinfo_from_path(file_name)
+                num_pages = info.get('Pages', 0)
 
-            # Start worker thread
-            self.worker = PDFLoader(file_name, self.thumb_width)
-            self.worker.signals.progress.connect(self.update_progress)
-            self.worker.signals.result.connect(self.display_images)
-            self.worker.signals.finished.connect(self.loading_finished)
-            self.worker.signals.error.connect(self.loading_error)
-            self.worker.start()
+                # Check if the number of pages exceeds the limit
+                if num_pages > 100:
+                    reply = QMessageBox.question(
+                        self,
+                        "Large PDF Detected",
+                        f"The PDF has {num_pages} pages. Processing may take a long time and consume significant memory.\nDo you want to proceed?",
+                        QMessageBox.Yes | QMessageBox.No,
+                        QMessageBox.No
+                    )
+                    if reply == QMessageBox.No:
+                        return
+
+                # Disable UI elements
+                self.set_ui_enabled(False)
+                # Clear the scene
+                self.scene.clear()
+                # Reset zoom level
+                self.zoom_level = 1.0
+                self.view.resetTransform()
+                # Show progress bar
+                self.progress_bar.setValue(0)
+                self.progress_bar.setVisible(True)
+
+                # Start worker thread
+                self.worker = PDFLoader(file_name, self.thumb_width)
+                self.worker.signals.progress.connect(self.update_progress)
+                self.worker.signals.result.connect(self.display_images)
+                self.worker.signals.finished.connect(self.loading_finished)
+                self.worker.signals.error.connect(self.loading_error)
+                self.worker.start()
+
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to load PDF:\n{e}")
 
     def update_progress(self, value):
         self.progress_bar.setValue(value)
