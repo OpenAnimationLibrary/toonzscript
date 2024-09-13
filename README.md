@@ -1,4 +1,4 @@
-# toonzscript
+# Toonzscript
 Scripts for Opentoonz
 
 # Inbox
