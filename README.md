@@ -4,7 +4,7 @@ Scripts for Opentoonz
 # Inbox
 Link:  https://github.com/OpenAnimationLibrary/toonzscript/tree/main/inbox
 
-#Python scripts
+# Python scripts
 Python scripts cannot be run directly from Opentoonz but can be run independently.
 As such many useful utilities can be created to assist with production.
 Scripts collected here provide some examples of what can be done with python.
